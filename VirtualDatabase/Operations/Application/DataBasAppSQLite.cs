@@ -22,7 +22,28 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
         {
             SQLiteConnection sqliteConnection = (SQLiteConnection)DbConnection;
             sqliteConnection.Open();
-           
+            //sqliteConnection.EnableExtensions(true);
+            //string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+
+            //string filePhat = $"{baseDirectory}X64\\SQLite.Interop.dll";
+
+            //if (!File.Exists(filePhat))
+            //{
+            //    filePhat = "SQLite.Interop.dll";
+            //}
+            //filePhat = Function.GetRuntimeDirectory(filePhat);
+            //sqliteConnection.LoadExtension(filePhat, "sqlite3_fts5_init");
+
+            //filePhat = $"{baseDirectory}X64\\uuid.dll";
+
+            //if (!File.Exists(filePhat))
+            //{
+            //    filePhat = "uuid.dll";
+            //}
+            //filePhat = Function.GetRuntimeDirectory(filePhat);
+            //sqliteConnection.LoadExtension(filePhat, "sqlite3_uuid_init");
+
+
         }
 
 

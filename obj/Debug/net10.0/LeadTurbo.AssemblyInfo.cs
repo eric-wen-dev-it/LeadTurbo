@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LeadTurbo")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+251f4cf134b759b6207ecb739e05c3232ca6a4fd")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ef2069fc67d5d136b302c86f7805b0d2399cd9ff")]
 [assembly: System.Reflection.AssemblyProductAttribute("LeadTurbo")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LeadTurbo")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

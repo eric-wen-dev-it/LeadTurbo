@@ -23,11 +23,21 @@
     <PackageReference Include="Npgsql" Version="10.0.1" />
     <PackageReference Include="protobuf-net" Version="3.2.56" />
     <PackageReference Include="SauceControl.Blake2Fast" Version="2.0.0" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.2" />
     <PackageReference Include="System.Data.SQLite" Version="2.0.2" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="VirtualDatabase\DataSource\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="x64\SQLite.Interop.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="x64\uuid.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
