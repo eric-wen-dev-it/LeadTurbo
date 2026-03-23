@@ -1,4 +1,4 @@
-﻿using LeadTurbo.Artemis.Attributes;
+using LeadTurbo.Artemis.Attributes;
 using LeadTurbo.Exceptions;
 using System;
 using System.Collections.Generic;

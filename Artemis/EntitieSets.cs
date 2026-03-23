@@ -70,16 +70,16 @@ namespace LeadTurbo.Artemis
 
 
 
-        public void Initialize()
+        public async Task InitializeAsync()
         {
+            List<Task> tasks = new List<Task>();
             foreach (EntitySet entitySet in dictionary.Values)
             {
                 DataBasApp dataBasAPP = CreateDataBasAPP();
                 dataBasAPP.ConnectionString = databaseConnection;
-
-                Task task=entitySet.InitializeAsync(dataBasAPP);
-
+                tasks.Add(entitySet.InitializeAsync(dataBasAPP));
             }
+            await Task.WhenAll(tasks);
         }
 
 

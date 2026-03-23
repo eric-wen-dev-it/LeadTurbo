@@ -11,14 +11,23 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS0618;CS0612;CS1591</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Remove="C:\Users\zzy.JIAMPARTS\.nuget\packages\csharptest.net.collections-netstd2\14.907.0\contentFiles\any\netstandard2.0\README.htm" />
+    <Compile Remove="CSharpTest.Net.Collections\**" />
+    <None Remove="CSharpTest.Net.Collections\**" />
+    <EmbeddedResource Remove="CSharpTest.Net.Collections\**" />
+    <Content Remove="CSharpTest.Net.Collections\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CSharpTest.Net.Collections-NetStd2" Version="14.907.0" />
+    <EmbeddedResource Update="Collections\Resources.resx">
+      <LogicalName>LeadTurbo.Resources</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.4" />
     <PackageReference Include="Npgsql" Version="10.0.1" />
     <PackageReference Include="protobuf-net" Version="3.2.56" />
@@ -31,13 +40,5 @@
     <Folder Include="VirtualDatabase\DataSource\" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="x64\SQLite.Interop.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="x64\uuid.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
 
 </Project>

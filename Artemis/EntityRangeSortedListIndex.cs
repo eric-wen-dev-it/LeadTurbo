@@ -52,7 +52,7 @@ namespace LeadTurbo.Artemis
                 }
                 else if ((indexRangeSortedFeature.Feature.Banner & IndexRangeSortedFeature<T>.FeatureValue<T>.Symbol.GreaterThanOrEqual) == IndexRangeSortedFeature<T>.FeatureValue<T>.Symbol.GreaterThanOrEqual)
                 {
-                    keyValuePairs = rangeSortedList.GreaterThan(indexRangeSortedFeature.Feature.FromValue);
+                    keyValuePairs = rangeSortedList.GreaterThanOrEqual(indexRangeSortedFeature.Feature.FromValue);
                 }
                 else if ((indexRangeSortedFeature.Feature.Banner & IndexRangeSortedFeature<T>.FeatureValue<T>.Symbol.Max) == IndexRangeSortedFeature<T>.FeatureValue<T>.Symbol.Max)
                 {

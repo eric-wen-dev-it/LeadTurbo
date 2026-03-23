@@ -1,4 +1,4 @@
-﻿using ProtoBuf;
+using ProtoBuf;
 using ProtoBuf.Meta;
 using System;
 using System.Collections.Generic;
@@ -163,7 +163,7 @@ namespace LeadTurbo.Artemis
 
         }
 
-        public virtual int CompareTo(object obj)
+        public virtual int CompareTo(object? obj)
         {
             return Comparable(this, obj);
         }
@@ -260,7 +260,7 @@ namespace LeadTurbo.Artemis
 
 
 
-        protected virtual bool SetValidatedProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = null)
+        protected virtual bool SetValidatedProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
         {
             if (!EqualityComparer<T>.Default.Equals(field, value))
             {
@@ -583,12 +583,5 @@ namespace LeadTurbo.Artemis
         {
             return string.Format("{0}_SELECT_ForeignKey", entity.GetDbViewName());
         }
-
-
-
-       
-
-
-
     }
 }

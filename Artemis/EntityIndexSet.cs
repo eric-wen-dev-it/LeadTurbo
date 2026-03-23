@@ -85,14 +85,7 @@ namespace LeadTurbo.Artemis
 
             foreach (EntityIndexBase entityIndex in indexs.Values)
             {
-                try
-                {
-                    entityIndex.Set(entity);
-                }
-                catch(Exception ex) 
-                {
-                    throw;
-                }
+                entityIndex.Set(entity);
             }
 
         }

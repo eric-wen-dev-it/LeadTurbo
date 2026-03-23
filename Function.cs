@@ -112,6 +112,23 @@ namespace LeadTurbo
 
         }
 
+        // 所有标准块尺寸，降序排列
+        private static readonly int[] AllChunkSizes = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
+
+        private static int ToInt(MaxRangeKeyCount maxRangeKeyCount) => maxRangeKeyCount switch
+        {
+            MaxRangeKeyCount.Count1000 => 1000,
+            MaxRangeKeyCount.Count500  => 500,
+            MaxRangeKeyCount.Count200  => 200,
+            MaxRangeKeyCount.Count100  => 100,
+            MaxRangeKeyCount.Count50   => 50,
+            MaxRangeKeyCount.Count20   => 20,
+            MaxRangeKeyCount.Count10   => 10,
+            MaxRangeKeyCount.Count5    => 5,
+            MaxRangeKeyCount.Count2    => 2,
+            MaxRangeKeyCount.Count1    => 1,
+            _ => throw new ArgumentOutOfRangeException(nameof(maxRangeKeyCount))
+        };
 
         /// <summary>
         /// 将集合拆分
@@ -122,319 +139,26 @@ namespace LeadTurbo
         /// <returns></returns>
         public static List<List<T>> RangeKey<T>(List<T> keys, MaxRangeKeyCount maxRangeKeyCount)
         {
-            List<List<T>> rangeKey = new List<List<T>>();
+            int maxSize = ToInt(maxRangeKeyCount);
+            // 计算可用尺寸（所有 <= maxSize 的标准块尺寸），仅在循环前执行一次
+            int[] sizes = AllChunkSizes.SkipWhile(s => s > maxSize).ToArray();
+
+            var result = new List<List<T>>();
             int point = 0;
             int keyCount = keys.Count;
-            while (point != keyCount)
+            while (point < keyCount)
             {
-
-                if (maxRangeKeyCount == MaxRangeKeyCount.Count1000)
+                int remaining = keyCount - point;
+                // 贪心取最大可用块：从大到小找第一个 <= remaining 的尺寸
+                int chunkSize = 1;
+                foreach (int s in sizes)
                 {
-                    if (keyCount - point >= 1000)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1000));
-                        point += 1000;
-                    }
-                    else if (keyCount - point >= 500)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 500));
-                        point += 500;
-                    }
-                    else if (keyCount - point >= 200)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 200));
-                        point += 200;
-                    }
-                    else if (keyCount - point >= 100)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 100));
-                        point += 100;
-                    }
-                    else if (keyCount - point >= 50)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 50));
-                        point += 50;
-                    }
-                    else if (keyCount - point >= 20)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 20));
-                        point += 20;
-                    }
-                    else if (keyCount - point >= 10)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 10));
-                        point += 10;
-                    }
-                    else if (keyCount - point >= 5)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 5));
-                        point += 5;
-                    }
-                    else if (keyCount - point >= 2)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 2));
-                        point += 2;
-                    }
-                    else
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
+                    if (s <= remaining) { chunkSize = s; break; }
                 }
-                else if (maxRangeKeyCount == MaxRangeKeyCount.Count500)
-                {
-                    if (keyCount - point >= 500)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 500));
-                        point += 500;
-                    }
-                    else if (keyCount - point >= 200)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 200));
-                        point += 200;
-                    }
-                    else if (keyCount - point >= 100)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 100));
-                        point += 100;
-                    }
-                    else if (keyCount - point >= 50)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 50));
-                        point += 50;
-                    }
-                    else if (keyCount - point >= 20)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 20));
-                        point += 20;
-                    }
-                    else if (keyCount - point >= 10)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 10));
-                        point += 10;
-                    }
-                    else if (keyCount - point >= 5)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 5));
-                        point += 5;
-                    }
-                    else if (keyCount - point >= 2)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 2));
-                        point += 2;
-                    }
-                    else
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
-                }
-                else if (maxRangeKeyCount == MaxRangeKeyCount.Count200)
-                {
-                    if (keyCount - point >= 200)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 200));
-                        point += 200;
-                    }
-                    else if (keyCount - point >= 100)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 100));
-                        point += 100;
-                    }
-                    else if (keyCount - point >= 50)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 50));
-                        point += 50;
-                    }
-                    else if (keyCount - point >= 20)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 20));
-                        point += 20;
-                    }
-                    else if (keyCount - point >= 10)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 10));
-                        point += 10;
-                    }
-                    else if (keyCount - point >= 5)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 5));
-                        point += 5;
-                    }
-                    else if (keyCount - point >= 2)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 2));
-                        point += 2;
-                    }
-                    else
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
-                }
-                else if (maxRangeKeyCount == MaxRangeKeyCount.Count100)
-                {
-                    if (keyCount - point >= 100)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 100));
-                        point += 100;
-                    }
-                    else if (keyCount - point >= 50)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 50));
-                        point += 50;
-                    }
-                    else if (keyCount - point >= 20)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 20));
-                        point += 20;
-                    }
-                    else if (keyCount - point >= 10)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 10));
-                        point += 10;
-                    }
-                    else if (keyCount - point >= 5)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 5));
-                        point += 5;
-                    }
-                    else if (keyCount - point >= 2)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 2));
-                        point += 2;
-                    }
-                    else
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
-                }
-                else if (maxRangeKeyCount == MaxRangeKeyCount.Count50)
-                {
-                    if (keyCount - point >= 50)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 50));
-                        point += 50;
-                    }
-                    else if (keyCount - point >= 20)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 20));
-                        point += 20;
-                    }
-                    else if (keyCount - point >= 10)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 10));
-                        point += 10;
-                    }
-                    else if (keyCount - point >= 5)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 5));
-                        point += 5;
-                    }
-                    else if (keyCount - point >= 2)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 2));
-                        point += 2;
-                    }
-                    else
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
-                }
-                else if (maxRangeKeyCount == MaxRangeKeyCount.Count20)
-                {
-                    if (keyCount - point >= 20)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 20));
-                        point += 20;
-                    }
-                    else if (keyCount - point >= 10)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 10));
-                        point += 10;
-                    }
-                    else if (keyCount - point >= 5)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 5));
-                        point += 5;
-                    }
-                    else if (keyCount - point >= 2)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 2));
-                        point += 2;
-                    }
-                    else
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
-                }
-                else if (maxRangeKeyCount == MaxRangeKeyCount.Count10)
-                {
-                    if (keyCount - point >= 10)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 10));
-                        point += 10;
-                    }
-                    else if (keyCount - point >= 5)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 5));
-                        point += 5;
-                    }
-                    else if (keyCount - point >= 2)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 2));
-                        point += 2;
-                    }
-                    else
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
-                }
-                else if (maxRangeKeyCount == MaxRangeKeyCount.Count5)
-                {
-                    if (keyCount - point >= 5)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 5));
-                        point += 5;
-                    }
-                    else if (keyCount - point >= 2)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 2));
-                        point += 2;
-                    }
-                    else
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
-                }
-                else if (maxRangeKeyCount == MaxRangeKeyCount.Count2)
-                {
-                    if (keyCount - point >= 2)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 2));
-                        point += 2;
-                    }
-                    else
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
-                }
-                else if (maxRangeKeyCount == MaxRangeKeyCount.Count1)
-                {
-                    if (keyCount - point > 0)
-                    {
-                        rangeKey.Add(keys.GetRange(point, 1));
-                        point++;
-                    }
-                }
+                result.Add(keys.GetRange(point, chunkSize));
+                point += chunkSize;
             }
-            return rangeKey;
+            return result;
         }
 
 
@@ -476,9 +200,6 @@ namespace LeadTurbo
 
         //    return valid;
         //}
-
-
-        static Random random = new Random();
 
 
         public static void RandomOrder<T>(T[] array)
@@ -547,7 +268,7 @@ namespace LeadTurbo
 
         public static int GetRandom(int min, int max)
         {
-            return random.Next(min, max);
+            return Random.Shared.Next(min, max);
 
         }
 
@@ -557,11 +278,11 @@ namespace LeadTurbo
             'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O',
             'P','Q','R','S','T','U','V','W','X','Y','Z'};
 
-            int count = random.Next(1, 50);
+            int count = Random.Shared.Next(1, 50);
             char[] data = new char[count];
             for (int a = 0; a < count; a++)
             {
-                int index = random.Next(0, charData.Length);
+                int index = Random.Shared.Next(0, charData.Length);
                 data[a] = charData[index];
             }
             return new string(data);

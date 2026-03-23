@@ -37,7 +37,8 @@ namespace LeadTurbo.Edit
             object target = sender;
             string propertyTarget = propertyName;
             Type type = target.GetType();
-            PropertyInfo propertyInfo = type.GetProperty(propertyTarget);
+            PropertyInfo propertyInfo = type.GetProperty(propertyTarget)
+                ?? throw new InvalidOperationException($"Property '{propertyTarget}' not found on type '{type.FullName}'.");
             object value = propertyInfo.GetValue(target);
             return new Operate(banner, target, propertyTarget, value);
         }
@@ -52,7 +53,8 @@ namespace LeadTurbo.Edit
                     object target = operate.Target;
                     string propertyTarget = operate.propertyTarget;
                     Type type = target.GetType();
-                    PropertyInfo propertyInfo = type.GetProperty(propertyTarget);
+                    PropertyInfo propertyInfo = type.GetProperty(propertyTarget)
+                        ?? throw new InvalidOperationException($"Property '{propertyTarget}' not found on type '{type.FullName}'.");
                     object value = operate.Value;
                     propertyInfo.SetValue(target, value);
                     break;
@@ -63,7 +65,8 @@ namespace LeadTurbo.Edit
                     object target = operate.Target;
                     string propertyTarget = operate.propertyTarget;
                     Type type = target.GetType();
-                    MethodInfo propertyInfo = type.GetMethod(propertyTarget);
+                    MethodInfo propertyInfo = type.GetMethod(propertyTarget)
+                        ?? throw new InvalidOperationException($"Method '{propertyTarget}' not found on type '{type.FullName}'.");
                     object value = operate.Value;
                     propertyInfo.Invoke(target, new object[] { value });
                     break;

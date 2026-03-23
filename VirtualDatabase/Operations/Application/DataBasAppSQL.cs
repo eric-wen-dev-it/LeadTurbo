@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.ComponentModel;
 using System.Data;
@@ -12,9 +12,9 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
     /// <summary>
     /// SQL SERVER数据库应用。
     /// </summary>
-    public class DataBasAppSQL : DataBasAPP
+    public class DataBasAppSQL : DataBasApp
     {
-        public override DataBasParam CreateDataBasParam()
+        public override DataBasApp.DataBasParam CreateDataBasParam()
         {
             throw new NotImplementedException();
         }

@@ -267,93 +267,47 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
         }
 
         /// <summary>
-		/// 执行返回结果的SQL
-		/// </summary>
-		protected DbDataReader ExecuteReaderSQL()
+        /// 创建并配置一个 DbCommand，调用方负责 dispose。
+        /// </summary>
+        private DbCommand CreateConfiguredCommand(CommandType commandType)
         {
-            using (DbCommand dbCommand = CreateDbCommand())
+            DbCommand dbCommand = CreateDbCommand();
+            dbCommand.CommandType = commandType;
+            dbCommand.CommandText = this.Param.Command;
+            dbCommand.Transaction = dbTransaction;
+            dbCommand.CommandTimeout = this.Param.CommandTimeout;
+
+            object[] paramArray = Param.GetParamArray();
+            for (int a = 0; a < paramArray.Length; a++)
             {
-
-                dbCommand.CommandType = CommandType.Text;
-                dbCommand.CommandText = this.Param.Command;
-                dbCommand.Transaction = dbTransaction;
-                dbCommand.CommandTimeout = this.Param.CommandTimeout;
-
-                object[] paramArray = Param.GetParamArray();
-                for (int a = 0; a < paramArray.Length; a++)
+                if (paramArray[a] is DbParameter dbParameter)
                 {
-
-                    if (paramArray[a] is DbParameter dbParameter)
-                    {
-                        if (dbParameter.Value == null)
-                        {
-                            dbParameter.Value = DBNull.Value;
-                        }
-
-                        dbCommand.Parameters.Add(dbParameter);
-                    }
-                    else
-                    {
-                        if (paramArray[a] == null)
-                        {
-                            paramArray[a] = DBNull.Value;
-                        }
-
-                        dbParameter = CreateDbParameter(dbCommand);
-                        dbParameter.ParameterName = string.Format("@P_{0}", a);
-                        dbParameter.Value = paramArray[a];
-                        dbCommand.Parameters.Add(dbParameter);
-                    }
+                    if (dbParameter.Value == null)
+                        dbParameter.Value = DBNull.Value;
+                    dbCommand.Parameters.Add(dbParameter);
                 }
-                return dbCommand.ExecuteReader();
+                else
+                {
+                    if (paramArray[a] == null)
+                        paramArray[a] = DBNull.Value;
+                    dbParameter = CreateDbParameter(dbCommand);
+                    dbParameter.ParameterName = string.Format("@P_{0}", a);
+                    dbParameter.Value = paramArray[a];
+                    dbCommand.Parameters.Add(dbParameter);
+                }
             }
+            return dbCommand;
         }
 
         /// <summary>
-		/// 执行返回结果的存储过程
-		/// </summary>
-		protected DbDataReader ExecuteReaderProcedure()
-        {
-            using (DbCommand dbCommand = CreateDbCommand())
-            {
+        /// 创建配置好的 SQL 文本命令，调用方负责 dispose。
+        /// </summary>
+        protected DbCommand CreateTextReaderCommand() => CreateConfiguredCommand(CommandType.Text);
 
-                dbCommand.CommandType = CommandType.StoredProcedure;
-                dbCommand.CommandText = this.Param.Command;
-                dbCommand.Transaction = dbTransaction;
-                dbCommand.CommandTimeout = this.Param.CommandTimeout;
-
-
-
-                object[] paramArray = Param.GetParamArray();
-                for (int a = 0; a < paramArray.Length; a++)
-                {
-
-                    if (paramArray[a] is DbParameter dbParameter)
-                    {
-                        if (dbParameter.Value == null)
-                        {
-                            dbParameter.Value = DBNull.Value;
-                        }
-
-                        dbCommand.Parameters.Add(dbParameter);
-                    }
-                    else
-                    {
-                        if (paramArray[a] == null)
-                        {
-                            paramArray[a] = DBNull.Value;
-                        }
-
-                        dbParameter = CreateDbParameter(dbCommand);
-                        dbParameter.ParameterName = string.Format("@P_{0}", a);
-                        dbParameter.Value = paramArray[a];
-                        dbCommand.Parameters.Add(dbParameter);
-                    }
-                }
-                return dbCommand.ExecuteReader();
-            }
-
-        }
+        /// <summary>
+        /// 创建配置好的存储过程命令，调用方负责 dispose。
+        /// </summary>
+        protected DbCommand CreateProcedureReaderCommand() => CreateConfiguredCommand(CommandType.StoredProcedure);
 
         /// <summary>
 		/// 执行不返回结果的SQL
@@ -614,8 +568,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             DataBasParamTest();
             if (dataBasParam.CommandType == ExecuteType.Procedure)
             {
-
-                using (DbDataReader dbDataReader = ExecuteReaderProcedure())
+                using (DbCommand dbCommand = CreateProcedureReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToEnumerable(dbDataReader);
@@ -623,7 +577,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             }
             else
             {
-                using (DbDataReader dbDataReader = ExecuteReaderSQL())
+                using (DbCommand dbCommand = CreateTextReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToEnumerable(dbDataReader);
@@ -643,7 +598,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             DataBasParamTest();
             if (dataBasParam.CommandType == ExecuteType.Procedure)
             {
-                using (DbDataReader dbDataReader = ExecuteReaderProcedure())
+                using (DbCommand dbCommand = CreateProcedureReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToArrayList(dbDataReader);
@@ -651,7 +607,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             }
             else
             {
-                using (DbDataReader dbDataReader = ExecuteReaderSQL())
+                using (DbCommand dbCommand = CreateTextReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToArrayList(dbDataReader);
@@ -668,7 +625,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             DataBasParamTest();
             if (dataBasParam.CommandType == ExecuteType.Procedure)
             {
-                using (DbDataReader dbDataReader = ExecuteReaderProcedure())
+                using (DbCommand dbCommand = CreateProcedureReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToStringArray(dbDataReader);
@@ -676,7 +634,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             }
             else
             {
-                using (DbDataReader dbDataReader = ExecuteReaderSQL())
+                using (DbCommand dbCommand = CreateTextReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToStringArray(dbDataReader);
@@ -693,7 +652,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             DataBasParamTest();
             if (dataBasParam.CommandType == ExecuteType.Procedure)
             {
-                using (DbDataReader dbDataReader = ExecuteReaderProcedure())
+                using (DbCommand dbCommand = CreateProcedureReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToAString(dbDataReader);
@@ -701,7 +661,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             }
             else
             {
-                using (DbDataReader dbDataReader = ExecuteReaderSQL())
+                using (DbCommand dbCommand = CreateTextReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToAString(dbDataReader);
@@ -718,7 +679,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             DataBasParamTest();
             if (dataBasParam.CommandType == ExecuteType.Procedure)
             {
-                using (DbDataReader dbDataReader = ExecuteReaderProcedure())
+                using (DbCommand dbCommand = CreateProcedureReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToHTML(dbDataReader);
@@ -726,7 +688,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             }
             else
             {
-                using (DbDataReader dbDataReader = ExecuteReaderSQL())
+                using (DbCommand dbCommand = CreateTextReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToHTML(dbDataReader);
@@ -743,7 +706,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             DataBasParamTest();
             if (dataBasParam.CommandType == ExecuteType.Procedure)
             {
-                using (DbDataReader dbDataReader = ExecuteReaderProcedure())
+                using (DbCommand dbCommand = CreateProcedureReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToXML(dbDataReader);
@@ -751,7 +715,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             }
             else
             {
-                using (DbDataReader dbDataReader = ExecuteReaderSQL())
+                using (DbCommand dbCommand = CreateTextReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToXML(dbDataReader);
@@ -769,7 +734,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             DataBasParamTest();
             if (dataBasParam.CommandType == ExecuteType.Procedure)
             {
-                using (DbDataReader dbDataReader = ExecuteReaderProcedure())
+                using (DbCommand dbCommand = CreateProcedureReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToDataTable(dbDataReader);
@@ -777,7 +743,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             }
             else
             {
-                using (DbDataReader dbDataReader = ExecuteReaderSQL())
+                using (DbCommand dbCommand = CreateTextReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return ToDataTable(dbDataReader);
@@ -794,7 +761,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             DataBasParamTest();
             if (dataBasParam.CommandType == ExecuteType.Procedure)
             {
-                using (DbDataReader dbDataReader = ExecuteReaderProcedure())
+                using (DbCommand dbCommand = CreateProcedureReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return Top1Row1(dbDataReader);
@@ -802,7 +770,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             }
             else
             {
-                using (DbDataReader dbDataReader = ExecuteReaderSQL())
+                using (DbCommand dbCommand = CreateTextReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     dataBasParam.Default();
                     return Top1Row1(dbDataReader);

@@ -22,28 +22,6 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
         {
             SQLiteConnection sqliteConnection = (SQLiteConnection)DbConnection;
             sqliteConnection.Open();
-            //sqliteConnection.EnableExtensions(true);
-            //string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-
-            //string filePhat = $"{baseDirectory}X64\\SQLite.Interop.dll";
-
-            //if (!File.Exists(filePhat))
-            //{
-            //    filePhat = "SQLite.Interop.dll";
-            //}
-            //filePhat = Function.GetRuntimeDirectory(filePhat);
-            //sqliteConnection.LoadExtension(filePhat, "sqlite3_fts5_init");
-
-            //filePhat = $"{baseDirectory}X64\\uuid.dll";
-
-            //if (!File.Exists(filePhat))
-            //{
-            //    filePhat = "uuid.dll";
-            //}
-            //filePhat = Function.GetRuntimeDirectory(filePhat);
-            //sqliteConnection.LoadExtension(filePhat, "sqlite3_uuid_init");
-
-
         }
 
 
@@ -113,7 +91,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             this.Param.Command = sql;
 
             List<KeyValuePair<long, int>> result = new List<KeyValuePair<long, int>>();
-            using (DbDataReader dbDataReader = this.ExecuteReaderSQL())
+            using (DbCommand dbCommand = this.CreateTextReaderCommand())
+            using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
             {
                 while (dbDataReader.Read())
                 {
@@ -139,7 +118,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             this.Param.Command = sql;
             this.Param.AddParam(primaryKey);
 
-            using (DbDataReader dbDataReader = this.ExecuteReaderSQL())
+            using (DbCommand dbCommand = this.CreateTextReaderCommand())
+            using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
             {
                 if (dbDataReader.Read())
                 {
@@ -262,7 +242,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
 
             Dictionary<long, Entity> keyValuePairs = new Dictionary<long, Entity>();
 
-            using (DbDataReader dbDataReader = this.ExecuteReaderSQL())
+            using (DbCommand dbCommand = this.CreateTextReaderCommand())
+            using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
             {
                 while (dbDataReader.Read())
                 {
@@ -394,7 +375,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
 
             Dictionary<long, Entity> keyValuePairs = new Dictionary<long, Entity>();
 
-            using (DbDataReader dbDataReader = this.ExecuteReaderSQL())
+            using (DbCommand dbCommand = this.CreateTextReaderCommand())
+            using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
             {
                 while (dbDataReader.Read())
                 {
@@ -431,7 +413,8 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
                 this.Param.CommandType = ExecuteType.SQL;
                 this.Param.Command = "select [sql] from [Procedures] where [Name]=@P_0 COLLATE NOCASE";
                 this.Param.AddParam(procedureName);
-                using (DbDataReader dbDataReader = this.ExecuteReaderSQL())
+                using (DbCommand dbCommand = this.CreateTextReaderCommand())
+                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
                 {
                     if (dbDataReader.Read())
                     {

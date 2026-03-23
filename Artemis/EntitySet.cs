@@ -1,4 +1,4 @@
-﻿using LeadTurbo.Artemis.Attributes;
+using LeadTurbo.Artemis.Attributes;
 using LeadTurbo.Artemis.IndexFeatures;
 using LeadTurbo.Exceptions;
 using LeadTurbo.VirtualDatabase.ColumnEntitys;
@@ -191,7 +191,7 @@ namespace LeadTurbo.Artemis
                     }
                 }
 
-                HashSet<long> temp = null;
+                HashSet<long>? temp = null;
                 foreach (HashSet<long> guids in findResults)
                 {
                     if (temp != null)
@@ -205,6 +205,8 @@ namespace LeadTurbo.Artemis
                 }
 
                 List<KeyValuePair<long, int>> _return = new List<KeyValuePair<long, int>>();
+                if (temp == null)
+                    return _return.ToArray();
                 foreach (long guid in temp)
                 {
                     int ver;
@@ -269,7 +271,7 @@ namespace LeadTurbo.Artemis
                     }
                 }
 
-                HashSet<long> temp = null;
+                HashSet<long>? temp = null;
                 foreach (HashSet<long> guids in findResults)
                 {
                     if (temp != null)
@@ -283,6 +285,8 @@ namespace LeadTurbo.Artemis
                 }
 
                 List<KeyValuePair<long, int>> _return = new List<KeyValuePair<long, int>>();
+                if (temp == null)
+                    return _return.ToArray();
                 foreach (long guid in temp)
                 {
                     int ver;
@@ -1000,8 +1004,6 @@ namespace LeadTurbo.Artemis
         /// <returns></returns>
         Entity[] InitializeFillDBItem(DataBasApp dataBasApp, long[] mainKeys)
         {
-            try
-            {
 
                 Entity[] entitys = dataBasApp.LoadEntitysFormDatabaseForInitializationResult(CreateEntity, ((MaxRangeKeyCount)Enum.Parse(typeof(MaxRangeKeyCount), string.Format("Count{0}", mainKeys.Length))), mainKeys);
 
@@ -1028,12 +1030,6 @@ namespace LeadTurbo.Artemis
                 }
 
                 return _return.ToArray();
-            }
-            catch (Exception ex)
-            {
-                throw;
-            }
-
         }
 
 
