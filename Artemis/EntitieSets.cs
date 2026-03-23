@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -72,72 +71,61 @@ namespace LeadTurbo.Artemis
 
         public async Task InitializeAsync()
         {
-            List<Task> tasks = new List<Task>();
-            foreach (EntitySet entitySet in dictionary.Values)
+            List<DataBasApp> apps = new List<DataBasApp>();
+            try
             {
-                DataBasApp dataBasAPP = CreateDataBasAPP();
-                dataBasAPP.ConnectionString = databaseConnection;
-                tasks.Add(entitySet.InitializeAsync(dataBasAPP));
+                List<Task> tasks = new List<Task>();
+                foreach (EntitySet entitySet in dictionary.Values)
+                {
+                    DataBasApp dataBasAPP = CreateDataBasAPP();
+                    apps.Add(dataBasAPP);
+                    tasks.Add(entitySet.InitializeAsync(dataBasAPP));
+                }
+                await Task.WhenAll(tasks);
             }
-            await Task.WhenAll(tasks);
+            finally
+            {
+                foreach (DataBasApp app in apps)
+                {
+                    app.Dispose();
+                }
+            }
         }
 
 
         public void SaveEntity(SaveEntityData saveEntityData)
         {
-            DataBasApp dataBasAPP = CreateDataBasAPP();
+            using DataBasApp dataBasAPP = CreateDataBasAPP();
 
             EntitySet entitySet = this[saveEntityData.TypeNameOfTargetEntity];
 
-
-
-
-            try
+            dataBasAPP.OpenDataBas();
+            switch (saveEntityData.Banner)
             {
-                dataBasAPP.OpenDataBas();
-                switch (saveEntityData.Banner)
+                case SaveEntityData.Operation.Insert:
                 {
-                    case SaveEntityData.Operation.Insert:
-                    {
-                        entitySet.Insert(saveEntityData.TargetEntity, dataBasAPP);
-                        break;
-                    }
-                    case SaveEntityData.Operation.Update:
-                    {
-                        entitySet.Updated(saveEntityData.TargetEntity, dataBasAPP);
-                        break;
-                    }
-                    case SaveEntityData.Operation.Delete:
-                    {
-                        entitySet.Remove(saveEntityData.TargetEntity, dataBasAPP);
-                        break;
-                    }
+                    entitySet.Insert(saveEntityData.TargetEntity, dataBasAPP);
+                    break;
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex);
-                throw;
-            }
-            finally
-            {
-                dataBasAPP.CloseDataBas();
+                case SaveEntityData.Operation.Update:
+                {
+                    entitySet.Updated(saveEntityData.TargetEntity, dataBasAPP);
+                    break;
+                }
+                case SaveEntityData.Operation.Delete:
+                {
+                    entitySet.Remove(saveEntityData.TargetEntity, dataBasAPP);
+                    break;
+                }
             }
         }
 
         public T[] SelectEntity<T>(KeyValuePair<long, int>[] keys) where T: Entity
         {
-            DataBasApp dataBasAPP = CreateDataBasAPP();
+            using DataBasApp dataBasAPP = CreateDataBasAPP();
             EntitySet entitySet = this[typeof(T).Name];
-            try
-            {
-                dataBasAPP.OpenDataBas();
-                return entitySet.Select<T>(keys,dataBasAPP);
-            }
-            finally
-            {
-                dataBasAPP.CloseDataBas();
-            }
+            dataBasAPP.OpenDataBas();
+            return entitySet.Select<T>(keys, dataBasAPP);
         }
 
 

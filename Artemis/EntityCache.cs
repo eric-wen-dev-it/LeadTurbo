@@ -1,209 +1,219 @@
-﻿using System;
-using System.Collections.Concurrent;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace LeadTurbo.Artemis
 {
+    /// <summary>
+    /// 分段 LRU 缓存。segmentCount 必须是 2 的幂，默认 16 段。
+    /// 不同主键落在不同段时完全不竞争，并发度 ≈ segmentCount。
+    /// </summary>
     public class EntityCache : IDisposable
     {
-        // 用于保护链表操作的锁对象
-        private readonly object listLock = new object();
+        private readonly CacheSegment[] segments;
+        private readonly int segmentMask;
 
-        // 使用线程安全的ConcurrentDictionary来存储主键到链表节点的映射
-        private ConcurrentDictionary<long, LinkedListNode<Entity>> keyIndex = new ConcurrentDictionary<long, LinkedListNode<Entity>>();
-        // 链表用于维护LRU顺序：头部为最近使用，尾部为最久未使用
-        private LinkedList<Entity> cacheIndex = new LinkedList<Entity>();
+        public EntityCache(int segmentCount = 16, int maxCacheCount = 5000)
+        {
+            if (segmentCount <= 0 || (segmentCount & (segmentCount - 1)) != 0)
+                throw new ArgumentException("segmentCount 必须是 2 的幂", nameof(segmentCount));
 
-        private int maxCacheCount = 5000;
+            segmentMask = segmentCount - 1;
+            int perSegment = Math.Max(1, maxCacheCount / segmentCount);
+            int remainder = maxCacheCount % segmentCount;
+            segments = new CacheSegment[segmentCount];
+            for (int i = 0; i < segmentCount; i++)
+                segments[i] = new CacheSegment(perSegment + (i < remainder ? 1 : 0));
+        }
+
+        // 用主键低位取模，Snowflake ID 低位分布均匀
+        private CacheSegment GetSegment(long primaryKey)
+            => segments[primaryKey & segmentMask];
+
         /// <summary>
-        /// 本Cache最大缓存数量
+        /// 本 Cache 最大缓存数量（均分到各段）
         /// </summary>
         public int MaxCacheCount
         {
-            get => maxCacheCount;
-            set => maxCacheCount = value;
+            get
+            {
+                int total = 0;
+                foreach (CacheSegment seg in segments)
+                    total += seg.MaxCount;
+                return total;
+            }
+            set
+            {
+                int perSegment = Math.Max(1, value / segments.Length);
+                int remainder = value % segments.Length;
+                for (int i = 0; i < segments.Length; i++)
+                    segments[i].MaxCount = perSegment + (i < remainder ? 1 : 0);
+            }
         }
 
         /// <summary>
-        /// 向Cache添加实体。
+        /// 向 Cache 添加实体。已存在返回 false。
         /// </summary>
-        /// <param name="entity"></param>
         public bool Add(Entity entity)
-        {
-            // 创建新的节点
-            var newNode = new LinkedListNode<Entity>(entity);
-            // 尝试添加到字典（无需加锁）
-            if (keyIndex.TryAdd(entity.PrimaryKey, newNode))
-            {
-                lock (listLock)
-                {
-                    // 加入链表头部
-                    cacheIndex.AddFirst(newNode);
-                    // 超出缓存容量时移除尾部节点
-                    while (keyIndex.Count > maxCacheCount)
-                    {
-                        RemoveLastInternal();
-                    }
-                }
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
+            => GetSegment(entity.PrimaryKey).Add(entity);
 
         /// <summary>
-        /// 更新Cache中的实体，如果已存在则先移除后添加（相当于将其置于链表头部）。
+        /// 更新 Cache 中的实体，置于 LRU 头部。
         /// </summary>
-        /// <param name="entity"></param>
         public void Updated(Entity entity)
-        {
-            // 首先在字典中尝试移除旧节点（无需锁保护字典）
-            if (keyIndex.TryRemove(entity.PrimaryKey, out var existingNode))
-            {
-                lock (listLock)
-                {
-                    cacheIndex.Remove(existingNode);
-                }
-            }
-
-            // 添加新的实体
-            var newNode = new LinkedListNode<Entity>(entity);
-            if (keyIndex.TryAdd(entity.PrimaryKey, newNode))
-            {
-                lock (listLock)
-                {
-                    cacheIndex.AddFirst(newNode);
-                    while (keyIndex.Count > maxCacheCount)
-                    {
-                        RemoveLastInternal();
-                    }
-                }
-            }
-        }
+            => GetSegment(entity.PrimaryKey).Updated(entity);
 
         /// <summary>
         /// 移除指定实体。
         /// </summary>
-        /// <param name="entity"></param>
         public void Remove(Entity entity)
-        {
-            if (keyIndex.TryRemove(entity.PrimaryKey, out var node))
-            {
-                lock (listLock)
-                {
-                    cacheIndex.Remove(node);
-                }
-            }
-        }
+            => GetSegment(entity.PrimaryKey).Remove(entity);
 
         /// <summary>
-        /// 移除链表尾部的节点（最不常用的缓存项）。
-        /// 此方法假设调用者已经获取了listLock。
-        /// </summary>
-        private void RemoveLastInternal()
-        {
-            // 注意：这里在锁内操作链表
-            var last = cacheIndex.Last;
-            if (last != null)
-            {
-                // 从字典中移除时忽略返回值
-                keyIndex.TryRemove(last.Value.PrimaryKey, out _);
-                cacheIndex.RemoveLast();
-            }
-            else
-            {
-                throw new InvalidOperationException("链表为空，无法移除最后一个节点。");
-            }
-        }
-
-        /// <summary>
-        /// 判断Cache中是否包含指定主键的实体。
+        /// 判断 Cache 中是否包含指定主键的实体。
         /// </summary>
         public bool IsContains(long primaryKey)
-        {
-            return keyIndex.ContainsKey(primaryKey);
-        }
+            => GetSegment(primaryKey).IsContains(primaryKey);
 
         /// <summary>
-        /// 按主键获得Cache中的实体，并将其置于链表头部（LRU更新）。
+        /// 按主键获得 Cache 中的实体，并将其置于 LRU 头部。
         /// </summary>
         public Entity Get(long primaryKey)
-        {
-            if (keyIndex.TryGetValue(primaryKey, out var node))
-            {
-                // 调整链表顺序：将节点移到头部
-                lock (listLock)
-                {
-                    cacheIndex.Remove(node);
-                    cacheIndex.AddFirst(node);
-                }
-                return node.Value;
-            }
-            else
-            {
-                throw new KeyNotFoundException("Cache中不存在该对象。");
-            }
-        }
+            => GetSegment(primaryKey).Get(primaryKey);
 
         /// <summary>
-        /// 按主键尝试获得Cache中的实体，并更新其使用状态。
+        /// 按主键尝试获得 Cache 中的实体，并将其置于 LRU 头部。
         /// </summary>
         public bool TryGet(long primaryKey, out Entity entity)
-        {
-            if (keyIndex.TryGetValue(primaryKey, out var node))
-            {
-                lock (listLock)
-                {
-                    cacheIndex.Remove(node);
-                    cacheIndex.AddFirst(node);
-                }
-                entity = node.Value;
-                return true;
-            }
-            else
-            {
-                entity = null;
-                return false;
-            }
-        }
-
-        #region IDisposable Support
-        private bool disposedValue = false; // 用于检测冗余调用
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    // 释放每个实体，如果它们实现了IDisposable
-                    foreach (var node in cacheIndex)
-                    {
-                        if (node is IDisposable disposable)
-                        {
-                            disposable.Dispose();
-                        }
-                    }
-                    keyIndex.Clear();
-                    cacheIndex.Clear();
-                }
-                disposedValue = true;
-            }
-        }
+            => GetSegment(primaryKey).TryGet(primaryKey, out entity);
 
         public void Dispose()
         {
-            Dispose(true);
-            GC.SuppressFinalize(this);
+            foreach (CacheSegment seg in segments)
+                seg.Dispose();
         }
-        #endregion
 
+        // ── 单段 LRU ──────────────────────────────────────────────────────────
+        private sealed class CacheSegment : IDisposable
+        {
+            private readonly object lockObj = new object();
+            private readonly Dictionary<long, LinkedListNode<Entity>> index = new();
+            private readonly LinkedList<Entity> list = new();
+            private int maxCount;
 
+            public CacheSegment(int maxCount) => this.maxCount = maxCount;
 
+            public int MaxCount
+            {
+                get
+                {
+                    lock (lockObj) return maxCount;
+                }
+                set
+                {
+                    lock (lockObj)
+                    {
+                        maxCount = value;
+                        Trim();
+                    }
+                }
+            }
+
+            public bool Add(Entity entity)
+            {
+                var newNode = new LinkedListNode<Entity>(entity);
+                lock (lockObj)
+                {
+                    if (!index.TryAdd(entity.PrimaryKey, newNode))
+                        return false;
+                    list.AddFirst(newNode);
+                    Trim();
+                    return true;
+                }
+            }
+
+            public void Updated(Entity entity)
+            {
+                var newNode = new LinkedListNode<Entity>(entity);
+                lock (lockObj)
+                {
+                    if (index.Remove(entity.PrimaryKey, out var existing))
+                        list.Remove(existing);
+                    index[entity.PrimaryKey] = newNode;
+                    list.AddFirst(newNode);
+                    Trim();
+                }
+            }
+
+            public void Remove(Entity entity)
+            {
+                lock (lockObj)
+                {
+                    if (index.Remove(entity.PrimaryKey, out var node))
+                        list.Remove(node);
+                }
+            }
+
+            public bool IsContains(long primaryKey)
+            {
+                lock (lockObj) return index.ContainsKey(primaryKey);
+            }
+
+            public Entity Get(long primaryKey)
+            {
+                lock (lockObj)
+                {
+                    if (!index.TryGetValue(primaryKey, out var node))
+                        throw new KeyNotFoundException("Cache中不存在该对象。");
+                    MoveToFront(node);
+                    return node.Value;
+                }
+            }
+
+            public bool TryGet(long primaryKey, out Entity entity)
+            {
+                lock (lockObj)
+                {
+                    if (!index.TryGetValue(primaryKey, out var node))
+                    {
+                        entity = null;
+                        return false;
+                    }
+                    MoveToFront(node);
+                    entity = node.Value;
+                    return true;
+                }
+            }
+
+            // 调用方须持有 lockObj
+            private void MoveToFront(LinkedListNode<Entity> node)
+            {
+                list.Remove(node);
+                list.AddFirst(node);
+            }
+
+            // 调用方须持有 lockObj
+            private void Trim()
+            {
+                if (index.Count <= maxCount) return;
+                // 超出上限时批量驱逐至 9/10，均摊驱逐开销
+                int lowWaterMark = maxCount - maxCount / 10;
+                while (index.Count > lowWaterMark)
+                {
+                    LinkedListNode<Entity>? last = list.Last;
+                    if (last == null) break;
+                    index.Remove(last.Value.PrimaryKey);
+                    list.RemoveLast();
+                }
+            }
+
+            public void Dispose()
+            {
+                lock (lockObj)
+                {
+                    index.Clear();
+                    list.Clear();
+                }
+            }
+        }
     }
 }
