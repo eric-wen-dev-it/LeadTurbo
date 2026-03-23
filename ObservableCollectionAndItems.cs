@@ -300,6 +300,7 @@ namespace LeadTurbo
         }
 
         EditRecord undoEditRecord = new EditRecord();
+        Stack<Operate[]> redoStack = new Stack<Operate[]>();
 
 
         /// <summary>
@@ -315,12 +316,15 @@ namespace LeadTurbo
         public void UndoEditClear()
         {
             undoEditRecord.Clear();
-
+            redoStack.Clear();
         }
+
+        public bool IsRedo => redoStack.Count > 0;
 
 
         private void Item_PropertyChanging(object sender, PropertyChangingEventArgs e)
         {
+            redoStack.Clear();
             undoEditRecord.Push(Operate.OperateGet(sender, e.PropertyName));
         }
 
@@ -338,6 +342,7 @@ namespace LeadTurbo
             }
             if (newlistPush.Count > 0 && oldlistPush.Count > 0)
             {
+                redoStack.Clear();
                 undoEditRecord.Push(Operate.OperateGet(this, oldlistPush.ToArray(), newlistPush.ToArray()));
             }
         }
@@ -367,6 +372,55 @@ namespace LeadTurbo
             }
         }
 
+        // 根据一组 undo operates 构建对应的 redo operates（执行前捕获当前状态）
+        private Operate[] BuildRedoOperates(Operate[] undoOperates)
+        {
+            List<Operate> redoList = new List<Operate>();
+            foreach (Operate item in undoOperates)
+            {
+                switch (item.Banner)
+                {
+                    case Flag.ItemPropertyChanged:
+                        // 捕获当前（前向）值
+                        redoList.Add(Operate.OperateGet(item.Target, item.PropertyTarget));
+                        break;
+                    case Flag.CollectionAdd:
+                        // undo 调用 Remove；redo 应调用 Add
+                        redoList.Add(new Operate(Flag.CollectionRemove, item.Target, "Add", item.Value));
+                        break;
+                    case Flag.CollectionRemove:
+                        // undo 调用 Add；redo 应调用 Remove
+                        redoList.Add(new Operate(Flag.CollectionAdd, item.Target, "Remove", item.Value));
+                        break;
+                }
+            }
+            return redoList.ToArray();
+        }
+
+        private void ApplyOperates(Operate[] operate)
+        {
+            foreach (Operate item in operate)
+            {
+                if (item.Banner == Flag.ItemPropertyChanged)
+                    ((INotifyPropertyChanging)item.Target).PropertyChanging -= Item_PropertyChanging;
+            }
+            this.CollectionChanged -= ObservableCollectionAndItems_CollectionChanged;
+
+            foreach (Operate item in operate)
+            {
+                IEdit edit = item as IEdit;
+                if (edit != null) edit.Undo();
+                else Operate.OperateSet(item);
+            }
+
+            foreach (Operate item in operate)
+            {
+                if (item.Banner == Flag.ItemPropertyChanged)
+                    ((INotifyPropertyChanging)item.Target).PropertyChanging += Item_PropertyChanging;
+            }
+            this.CollectionChanged += ObservableCollectionAndItems_CollectionChanged;
+        }
+
         /// <summary>
         /// 撤销
         /// </summary>
@@ -374,51 +428,11 @@ namespace LeadTurbo
         {
             if (undoEditRecord.Count > 0)
             {
-
                 Operate[] operate = undoEditRecord.Pop();
-
-
-                foreach (Operate item in operate)
-                {
-                    if (item.Banner == Flag.ItemPropertyChanged)
-                    {
-                        INotifyPropertyChanging notifyPropertyChanging = (INotifyPropertyChanging)item.Target;
-                        notifyPropertyChanging.PropertyChanging -= Item_PropertyChanging;
-                    }
-                }
-                this.CollectionChanged -= ObservableCollectionAndItems_CollectionChanged;
-
-                foreach (Operate item in operate)
-                {
-                    IEdit edit = item as IEdit;
-                    if (edit != null)
-                    {
-                        edit.Undo();
-                    }
-                    else
-                    {
-                        Operate.OperateSet(item);
-                    }
-                }
-
-
-                foreach (Operate item in operate)
-                {
-                    if (item.Banner == Flag.ItemPropertyChanged)
-                    {
-                        INotifyPropertyChanging notifyPropertyChanging = (INotifyPropertyChanging)item.Target;
-                        notifyPropertyChanging.PropertyChanging += Item_PropertyChanging;
-                    }
-                }
-
-                this.CollectionChanged += ObservableCollectionAndItems_CollectionChanged;
-
-
-
+                Operate[] redoOperates = BuildRedoOperates(operate);
+                ApplyOperates(operate);
+                redoStack.Push(redoOperates);
             }
-
-
-
         }
 
         /// <summary>
@@ -426,7 +440,13 @@ namespace LeadTurbo
         /// </summary>
         public void Redo()
         {
-            throw new NotImplementedException();
+            if (redoStack.Count > 0)
+            {
+                Operate[] operate = redoStack.Pop();
+                Operate[] newUndoOperates = BuildRedoOperates(operate);
+                ApplyOperates(operate);
+                undoEditRecord.Push(newUndoOperates);
+            }
         }
     }
 }

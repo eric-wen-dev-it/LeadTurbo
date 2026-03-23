@@ -399,28 +399,27 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
         /// 结果转化为动态数组
         /// </summary>
         /// <returns>数组</returns>
-        protected ArrayList ToArrayList(DbDataReader dbDataReader)
+        protected List<List<object>> ToArrayList(DbDataReader dbDataReader)
         {
             int numcells = dbDataReader.FieldCount;
-            ArrayList al1 = new ArrayList();
-            ArrayList al2 = new ArrayList();
+            List<List<object>> result = new List<List<object>>();
+            List<object> header = new List<object>();
             for (int i = 0; i < numcells; i++)
             {
-                al2.Add(dbDataReader.GetName(i));
+                header.Add(dbDataReader.GetName(i));
             }
-            al1.Add(al2);
+            result.Add(header);
 
             while (dbDataReader.Read())
             {
-                al2 = new ArrayList();
+                List<object> row = new List<object>();
                 for (int i = 0; i < numcells; i++)
                 {
-                    al2.Add(dbDataReader.GetValue(i));
+                    row.Add(dbDataReader.GetValue(i));
                 }
-                al1.Add(al2);
+                result.Add(row);
             }
-            dbDataReader.Close();
-            return al1;
+            return result;
         }
         /// <summary>
 		/// 转化为字符串数组
@@ -471,7 +470,6 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
                     }
                 }
             }
-            dbDataReader.Close();
             return sb1.ToString();
         }
 
@@ -503,7 +501,6 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
                 sb1.Append("</tr>");
             }
             sb1.Append("</TABLE>");
-            dbDataReader.Close();
             return sb1.ToString();
         }
         /// <summary>
@@ -543,22 +540,6 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
         }
 
 
-        protected IEnumerable<object[]> ToEnumerable(DbDataReader dbDataReader)
-        {
-            int numcells = dbDataReader.FieldCount;
-            while (dbDataReader.Read())
-            {
-                List<object> list = new List<object>();
-                for (int i = 0; i < numcells; i++)
-                {
-                    list.Add(dbDataReader.GetValue(i));
-                }
-                yield return list.ToArray();
-            }
-            dbDataReader.Close();
-        }
-
-
         /// <summary>
         /// 返回一个迭代器
         /// </summary>
@@ -566,26 +547,21 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
         public IEnumerable<object[]> ReturnEnumerable()
         {
             DataBasParamTest();
-            if (dataBasParam.CommandType == ExecuteType.Procedure)
+            DbCommand dbCommand = dataBasParam.CommandType == ExecuteType.Procedure
+                ? CreateProcedureReaderCommand()
+                : CreateTextReaderCommand();
+            dataBasParam.Default();
+            using (dbCommand)
+            using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
             {
-                using (DbCommand dbCommand = CreateProcedureReaderCommand())
-                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
+                int numcells = dbDataReader.FieldCount;
+                while (dbDataReader.Read())
                 {
-                    dataBasParam.Default();
-                    return ToEnumerable(dbDataReader);
+                    object[] row = new object[numcells];
+                    dbDataReader.GetValues(row);
+                    yield return row;
                 }
             }
-            else
-            {
-                using (DbCommand dbCommand = CreateTextReaderCommand())
-                using (DbDataReader dbDataReader = dbCommand.ExecuteReader())
-                {
-                    dataBasParam.Default();
-                    return ToEnumerable(dbDataReader);
-                }
-            }
-
-
         }
 
 
@@ -593,7 +569,7 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
         /// 运行操作返回数组对象
         /// </summary>
         /// <returns>数组对象</returns>
-        public ArrayList ReturnToArrayList()
+        public List<List<object>> ReturnToArrayList()
         {
             DataBasParamTest();
             if (dataBasParam.CommandType == ExecuteType.Procedure)

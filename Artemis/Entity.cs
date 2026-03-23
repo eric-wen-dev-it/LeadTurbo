@@ -20,7 +20,9 @@ namespace LeadTurbo.Artemis
     [ProtoContract]
     public abstract class Entity : IComparable, INotifyPropertyChanged, INotifyPropertyChanging
     {
-        static SnowflakeIdGenerator snowflakeIdGenerator = new SnowflakeIdGenerator(0, 0);
+        static SnowflakeIdGenerator snowflakeIdGenerator = new SnowflakeIdGenerator(
+            long.TryParse(Environment.GetEnvironmentVariable("SNOWFLAKE_WORKER_ID"), out long wid) ? wid : 0,
+            long.TryParse(Environment.GetEnvironmentVariable("SNOWFLAKE_DATACENTER_ID"), out long did) ? did : 0);
 
         long primaryKey = snowflakeIdGenerator.NextId();
         int editVer = 0;
@@ -334,7 +336,7 @@ namespace LeadTurbo.Artemis
                         }
                         catch (Exception ex)
                         {
-                            //LogRecord.WriteErrotLog($"{ex.Message} {a.FullName}");
+                            Debug.WriteLine($"[Entity.GetKnownTypes] 加载程序集 {a.FullName} 失败：{ex.Message}");
                         }
                     }
                 }
@@ -408,7 +410,7 @@ namespace LeadTurbo.Artemis
             }
             catch (Exception ex)
             {
-
+                Debug.WriteLine($"[Entity..cctor] Protobuf 类型注册失败：{ex}");
             }
 
         }
