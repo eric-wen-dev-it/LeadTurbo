@@ -16,9 +16,9 @@ using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace LeadTurbo.VirtualDatabase
 {
-    public class SQLForBuildingASQLite
+    public class SQLForBuildingASQLite : SQLForBuildingDatabase
     {
-        public void Building(Database database)
+        public override void Building(Database database)
         {
             DataBasApp dataBasAPP=new DataBasAppSQLite();
             dataBasAPP.ConnectionString = database.ConnectString;
@@ -52,7 +52,7 @@ namespace LeadTurbo.VirtualDatabase
             }
         }
 
-        public void BuildingTableAll(Table table, DataBasApp dataBasAPP)
+        public override void BuildingTableAll(Table table, DataBasApp dataBasAPP)
         {
             BuildingTable(table, dataBasAPP);
             string sql = BuildingInsertProcedure(table);
@@ -127,36 +127,7 @@ namespace LeadTurbo.VirtualDatabase
 
 
 
-        public ColumnEntity[] GetPrimaryKeys(Table table)
-        {
-            List<ColumnEntity> primaryKeys = new List<ColumnEntity>();
-            foreach (ColumnEntity column in table.Columns)
-            {
-                if (column is ColumnEntitys.PrimaryKey)
-                {
-                    primaryKeys.Add(column);
-                }
-            }
-            return primaryKeys.ToArray();
-
-        }
-
-        public ColumnEntity[] GetVers(Table table)
-        {
-            List<ColumnEntity> vers = new List<ColumnEntity>();
-            foreach (ColumnEntity column in table.Columns)
-            {
-                if (column is ColumnEntitys.Ver)
-                {
-                    vers.Add(column);
-                }
-            }
-            return vers.ToArray();
-
-        }
-
-
-        public void BuildingTable(Table table, DataBasApp dataBasAPP)
+        public override void BuildingTable(Table table, DataBasApp dataBasAPP)
         {
             ColumnEntity[] primaryKeys = GetPrimaryKeys(table);
 
@@ -181,19 +152,9 @@ namespace LeadTurbo.VirtualDatabase
 
             if (table.HasSequence())
             {
-
-                sb.AppendLine($"DROP TABLE IF EXISTS [{table.Name}_Sequence_AutoIncrement];");
-                sb.AppendLine($"CREATE TRIGGER [{table.Name}_Sequence_AutoIncrement]");
-                sb.AppendLine($"AFTER INSERT ON [{table.Name}]");
-                sb.AppendLine($"WHEN NEW.Sequence = 0");
-                sb.AppendLine($"BEGIN");
-                sb.AppendLine($"UPDATE [{table.Name}]");
-                sb.AppendLine($"SET Sequence = (");
-                sb.AppendLine($"SELECT IFNULL(MAX(Sequence), 0) + 1");
-                sb.AppendLine($"FROM [{table.Name}]");
-                sb.AppendLine($")");
-                sb.AppendLine($"WHERE PrimaryKey = NEW.PrimaryKey;");
-                sb.AppendLine($"END;");
+                // 不再使用 trigger，改为在 INSERT 时直接 (SELECT MAX+1)；
+                // UNIQUE 索引兼顾两件事：MAX() 查询走索引很快，并发冲突时由唯一约束自然失败，由调用方重试
+                sb.AppendLine($"CREATE UNIQUE INDEX IF NOT EXISTS [IX_{table.Name}_Sequence] ON [{table.Name}] ([Sequence]);");
             }
 
 
@@ -255,7 +216,7 @@ namespace LeadTurbo.VirtualDatabase
 
 
 
-        public string BuildingColumn(ColumnEntity column)
+        public override string BuildingColumn(ColumnEntity column)
         {
             StringBuilder sb = new StringBuilder();
             sb.Append($"[{column.Name}] ");
@@ -275,7 +236,7 @@ namespace LeadTurbo.VirtualDatabase
         }
 
 
-        public string BuildingInsertProcedure(Table table)
+        public override string BuildingInsertProcedure(Table table)
         {
             StringBuilder sql = new StringBuilder();
             sql.AppendLine($"INSERT INTO [{table.Name}] (");
@@ -289,7 +250,15 @@ namespace LeadTurbo.VirtualDatabase
 
             for (int i = 0; i < table.Columns.Count; i++)
             {
-                sql.AppendLine($"@P_{i},");
+                if (table.Columns[i] is Sequence)
+                {
+                    // Sequence 列：忽略调用方传值，自动取 MAX+1
+                    sql.AppendLine($"(SELECT IFNULL(MAX([Sequence]), 0) + 1 FROM [{table.Name}]),");
+                }
+                else
+                {
+                    sql.AppendLine($"@P_{i},");
+                }
             }
             sql.Remove(sql.Length - 3, 3);
             sql.AppendLine($");");
@@ -297,7 +266,7 @@ namespace LeadTurbo.VirtualDatabase
             return sql.ToString();
         }
 
-        public string BuildingUpdateProcedure(Table table)
+        public override string BuildingUpdateProcedure(Table table)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"Update [{table.Name}]");
@@ -305,14 +274,17 @@ namespace LeadTurbo.VirtualDatabase
             int count = 0;
 
             List<KeyValuePair<string, int>> primaryKeys = new List<KeyValuePair<string, int>>();
-
-
+            List<KeyValuePair<string, int>> vers = new List<KeyValuePair<string, int>>();
 
             foreach (ColumnEntity column in table.Columns)
             {
                 if (column is PrimaryKey)
                 {
                     primaryKeys.Add(new KeyValuePair<string, int>(column.Name, count));
+                }
+                if (column is Ver)
+                {
+                    vers.Add(new KeyValuePair<string, int>(column.Name, count));
                 }
                 sb.AppendLine($"\t{column.Name}=@P_{count},");
                 count++;
@@ -326,21 +298,33 @@ namespace LeadTurbo.VirtualDatabase
                 sb.AppendLine($"\t{item.Key}=@P_{item.Value} and");
             }
 
+            foreach (KeyValuePair<string, int> item in vers)
+            {
+                sb.AppendLine($"\t{item.Key}=@P_{item.Value} -1 and");
+            }
+
             sb.Remove(sb.Length - 6, 6);
 
             return sb.ToString();
         }
 
-        public string BuildingDeleteProcedure(Table table)
+        public override string BuildingDeleteProcedure(Table table)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"Delete From [{table.Name}]");
             sb.AppendLine($"where");
             ColumnEntity[] primaryKeys = GetPrimaryKeys(table);
+            ColumnEntity[] vers = GetVers(table);
             int count = 0;
             foreach (ColumnEntity item in primaryKeys)
             {
                 sb.AppendLine($"\t{item.Name}=@P_{count} and");
+                count++;
+            }
+
+            foreach (ColumnEntity item in vers)
+            {
+                sb.AppendLine($"\t{item.Name}=@P_{count} -1 and");
                 count++;
             }
 
@@ -351,14 +335,14 @@ namespace LeadTurbo.VirtualDatabase
         }
 
 
-        public string BuildingAllMainKeysProcedure(Table table)
+        public override string BuildingAllMainKeysProcedure(Table table)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"SELECT [PRIMARYKEY] FROM [{table.Name}]");
             return sb.ToString();
         }
 
-        public string BuildingAllKeyAndVerProcedure(Table table)
+        public override string BuildingAllKeyAndVerProcedure(Table table)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine($"SELECT [PRIMARYKEY],[EDITVER] FROM [{table.Name}]");
@@ -366,7 +350,7 @@ namespace LeadTurbo.VirtualDatabase
         }
 
 
-        public string BuildingResultProcedure(Table table, MaxRangeKeyCount maxRangeKeyCount)
+        public override string BuildingResultProcedure(Table table, MaxRangeKeyCount maxRangeKeyCount)
         {
             ColumnEntity[] primaryKeys = GetPrimaryKeys(table);
 
@@ -380,49 +364,10 @@ namespace LeadTurbo.VirtualDatabase
             sb.Remove(sb.Length - 3, 3);
             sb.AppendLine();
             sb.AppendLine($"From [{table.Name}]");
-            
+
             sb.AppendLine("where");
 
-            int count = 0;
-
-            switch (maxRangeKeyCount)
-            {
-
-                case MaxRangeKeyCount.Count50:
-                {
-                    count = 50;
-                    break;
-                }
-                case MaxRangeKeyCount.Count20:
-                {
-                    count = 20;
-                    break;
-                }
-                case MaxRangeKeyCount.Count10:
-                {
-                    count = 10;
-                    break;
-                }
-                case MaxRangeKeyCount.Count5:
-                {
-                    count = 5;
-                    break;
-                }
-                case MaxRangeKeyCount.Count2:
-                {
-                    count = 2;
-                    break;
-                }
-                case MaxRangeKeyCount.Count1:
-                {
-                    count = 1;
-                    break;
-                }
-                default:
-                {
-                    throw new NotImplementedException(Enum.GetName(typeof(MaxRangeKeyCount), maxRangeKeyCount));
-                }
-            }
+            int count = MaxRangeKeyCountToInt(maxRangeKeyCount);
 
             int count1 = 0;
             for (int i = 0; i < count; i++)
@@ -447,7 +392,7 @@ namespace LeadTurbo.VirtualDatabase
 
 
 
-        public string BuildingInitializationResultProcedure(Table table, MaxRangeKeyCount maxRangeKeyCount)
+        public override string BuildingInitializationResultProcedure(Table table, MaxRangeKeyCount maxRangeKeyCount)
         {
             ColumnEntity[] primaryKeys = GetPrimaryKeys(table);
             ColumnEntity[] vers = GetVers(table);
@@ -464,46 +409,7 @@ namespace LeadTurbo.VirtualDatabase
 
             sb.AppendLine("where");
 
-            int count = 0;
-
-            switch (maxRangeKeyCount)
-            {
-
-                case MaxRangeKeyCount.Count50:
-                {
-                    count = 50;
-                    break;
-                }
-                case MaxRangeKeyCount.Count20:
-                {
-                    count = 20;
-                    break;
-                }
-                case MaxRangeKeyCount.Count10:
-                {
-                    count = 10;
-                    break;
-                }
-                case MaxRangeKeyCount.Count5:
-                {
-                    count = 5;
-                    break;
-                }
-                case MaxRangeKeyCount.Count2:
-                {
-                    count = 2;
-                    break;
-                }
-                case MaxRangeKeyCount.Count1:
-                {
-                    count = 1;
-                    break;
-                }
-                default:
-                {
-                    throw new NotImplementedException(Enum.GetName(typeof(MaxRangeKeyCount), maxRangeKeyCount));
-                }
-            }
+            int count = MaxRangeKeyCountToInt(maxRangeKeyCount);
 
             int count1 = 0;
             for (int i = 0; i < count; i++)
@@ -534,7 +440,7 @@ namespace LeadTurbo.VirtualDatabase
         /// </summary>
         /// <param name="colProperty"></param>
         /// <returns></returns>
-        public string TypeNameToSQLType(ColumnEntity colProperty)
+        public override string TypeNameToSQLType(ColumnEntity colProperty)
         {
             return colProperty switch
             {

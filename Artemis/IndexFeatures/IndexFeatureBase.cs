@@ -14,16 +14,12 @@ namespace LeadTurbo.Artemis.IndexFeatures
 {
     public abstract class IndexFeatureBase
     {
-        // 缓存：每个 “原始数据字符串” 对应一个 Task<ulong>，确保只计算一次
-        private static readonly ConcurrentDictionary<string, Task<ulong>> _typeKeyCache = new ConcurrentDictionary<string, Task<ulong>>();
+        // 缓存：每个 "原始数据字符串" 对应一个 ulong，确保只算一次（即便并发偶尔重复算，结果也一致）
+        private static readonly ConcurrentDictionary<string, ulong> _typeKeyCache = new ConcurrentDictionary<string, ulong>();
 
         // 存储本实例的 key 值（类型级别的 key）
         private ulong typeKey = 0UL;
 
-        /// <summary>
-        /// 同步属性：如果本实例还未计算 type-key，则等待缓存的任务完成，再返回结果。
-        /// 注意：在 UI 线程或有同步上下文环境中调用可能导致死锁。
-        /// </summary>
         public ulong Key
         {
             get
@@ -33,32 +29,14 @@ namespace LeadTurbo.Artemis.IndexFeatures
                     return typeKey;
                 }
 
-                // 构建用于唯一标识类型的原始数据字符串
                 string rawData = BuildIndexFeatureKeyRawData();
-
-                // 从缓存获取或启动计算任务
-                Task<ulong> keyTask = _typeKeyCache.GetOrAdd(
-                    rawData,
-                    _ => ComputeKeyInternalAsync(rawData)   // 注意传 rawData 而不是 “this” 来避免闭包问题
-                );
-
-                try
-                {
-                    // 等待异步任务完成
-                    typeKey = keyTask.GetAwaiter().GetResult();
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[Error] ComputeKey for type {GetType().FullName} failed: {ex}");
-                    throw;
-                }
-
+                typeKey = _typeKeyCache.GetOrAdd(rawData, ComputeKeyInternal);
                 return typeKey;
             }
         }
 
         /// <summary>
-        /// 构建用于 “类型级别键” 的原始数据字符串。默认实现：命名空间＋类型名。
+        /// 构建用于 "类型级别键" 的原始数据字符串。默认实现：命名空间＋类型名。
         /// 子类可重写以增加额外维度。
         /// </summary>
         protected virtual string BuildIndexFeatureKeyRawData()
@@ -67,25 +45,10 @@ namespace LeadTurbo.Artemis.IndexFeatures
             return $"{type.Namespace}|{type.Name}";
         }
 
-        /// <summary>
-        /// 内部异步逻辑：做实际的 Key 计算。
-        /// </summary>
-        /// <param name="rawData">用于计算的唯一标识字符串</param>
-        /// <returns>计算结果</returns>
-        protected static async Task<ulong> ComputeKeyInternalAsync(string rawData)
+        protected static ulong ComputeKeyInternal(string rawData)
         {
-            Debug.WriteLine($"ComputeKeyInternalAsync rawData = {rawData}");
-            try
-            {
-                // 这里调用你自己的异步方法，比如 ComputeBlake2b64FromStringAsync
-                ulong result = await Function.ComputeBlake2b64FromStringAsync(rawData).ConfigureAwait(false);
-                return result;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Error] in ComputeKeyInternalAsync for rawData {rawData}: {ex}");
-                throw;
-            }
+            Debug.WriteLine($"ComputeKeyInternal rawData = {rawData}");
+            return Function.ComputeXxHash3FromString(rawData);
         }
 
         public abstract void Initialize(Entity entity);

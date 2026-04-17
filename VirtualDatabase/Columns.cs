@@ -97,5 +97,22 @@ namespace LeadTurbo.VirtualDatabase
 
 
         }
+
+        public int GetVerIndex()
+        {
+            int index = 0;
+            foreach (ColumnEntity columnEntity in this)
+            {
+                index++;
+                if (columnEntity is Ver)
+                {
+                    return index;
+                }
+            }
+            return -1;
+        }
+
+
+
     }
 }

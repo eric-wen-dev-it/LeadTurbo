@@ -35,25 +35,8 @@ namespace LeadTurbo.Artemis.IndexFeatures
 
         protected override ulong ComputeFeature(object obj)
         {
-            string rawData = (string)obj;
-            if (rawData is null)
-            {
-                rawData = "rawData is Null.";
-            }
-
-
-            Task<ulong> keyTask = ComputeKeyInternalAsync(rawData);
-            ulong feature = 0;
-            try
-            {
-                feature = keyTask.GetAwaiter().GetResult();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Error] ComputeKey for type {GetType().FullName} failed: {ex}");
-                throw;
-            }
-            return feature;
+            string rawData = (string)obj ?? "rawData is Null.";
+            return ComputeKeyInternal(rawData);
         }
        
 

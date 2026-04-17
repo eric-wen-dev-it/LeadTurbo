@@ -1,8 +1,8 @@
-﻿using Blake2Fast;
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO.Hashing;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -480,123 +480,49 @@ namespace LeadTurbo
         }
 
         /// <summary>
-        /// 从流计算 BLAKE2b 的 8 字节（64 位）哈希值（unsigned long）。
+        /// 计算字节序列的 XxHash3 64 位哈希（非加密哈希，用于索引/去重）。
         /// </summary>
-        /// <param name="stream">输入数据流（可读）</param>
-        /// <param name="encoding">如流里是文本，则指定其编码；若不是文本可传 null 并直接 Update 字节</param>
-        /// <returns>哈希值（unsigned long）</returns>
-        public static async Task<ulong> ComputeBlake2b64FromStreamAsync(Stream stream, Encoding encoding = null)
+        public static ulong ComputeXxHash3FromBytes(ReadOnlySpan<byte> input)
+        {
+            return XxHash3.HashToUInt64(input);
+        }
+
+        /// <summary>
+        /// 计算字符串的 XxHash3 64 位哈希。
+        /// </summary>
+        /// <param name="input">输入字符串</param>
+        /// <param name="encoding">字节编码，默认 UTF-8</param>
+        public static ulong ComputeXxHash3FromString(string input, Encoding encoding = null)
+        {
+            if (input == null)
+                throw new ArgumentNullException(nameof(input));
+            encoding ??= Encoding.UTF8;
+            return XxHash3.HashToUInt64(encoding.GetBytes(input));
+        }
+
+        /// <summary>
+        /// 计算流内容的 XxHash3 64 位哈希。
+        /// </summary>
+        public static ulong ComputeXxHash3FromStream(Stream stream)
         {
             if (stream == null)
                 throw new ArgumentNullException(nameof(stream));
             if (!stream.CanRead)
                 throw new ArgumentException("Stream must be readable.", nameof(stream));
-
-            // 创建增量哈希器
-            var hasher = Blake2b.CreateIncrementalHasher(8);
-            // 注意：这里传入 8 表示我们希望输出 8 字节（64 位）哈希  
-            // （如果库版本的 CreateIncrementalHasher 默认输出最大长度，需要检查重载版本是否支持指定输出长度）
-
-            // 用缓冲区读流
-            byte[] buffer = ArrayPool<byte>.Shared.Rent(4096);
-            try
-            {
-                int bytesRead;
-                while ((bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length)) > 0)
-                {
-                    if (encoding != null)
-                    {
-                        // 如果你传入了编码，假设流里是文本内容，将字节按 encoding 解码然后再哈希字符串？（通常不必要）
-                        // 更合理的是：不要传 encoding，直接对原始字节做哈希
-                        // 下面是示意，如果你真的有文本流并要按字符处理的话
-                        string chunk = encoding.GetString(buffer, 0, bytesRead);
-                        hasher.Update(Encoding.UTF8.GetBytes(chunk));
-                    }
-                    else
-                    {
-                        // 直接对字节更新哈希
-                        hasher.Update(buffer.AsSpan(0, bytesRead));
-                    }
-                }
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(buffer);
-            }
-
-            // 完成哈希，得到输出字节数组
-            byte[] hashBytes = hasher.Finish();
-
-            if (hashBytes.Length != 8)
-                throw new InvalidOperationException($"Expected 8 bytes in hashBytes but got {hashBytes.Length}");
-
-            // 把 8 字节转换成 unsigned long（假设 big-endian）
-            ulong value =
-                  ((ulong)hashBytes[0] << 56)
-                | ((ulong)hashBytes[1] << 48)
-                | ((ulong)hashBytes[2] << 40)
-                | ((ulong)hashBytes[3] << 32)
-                | ((ulong)hashBytes[4] << 24)
-                | ((ulong)hashBytes[5] << 16)
-                | ((ulong)hashBytes[6] << 8)
-                | ((ulong)hashBytes[7]);
-
-            return value;
+            var hasher = new XxHash3();
+            hasher.Append(stream);
+            return hasher.GetCurrentHashAsUInt64();
         }
 
-        /// <summary>
-        /// 如果你需要 signed long (long)，可以这样转换：
-        /// </summary>
-        public static async Task<long> ComputeBlake2b64SignedFromStreamAsync(Stream stream, Encoding encoding = null)
-        {
-            ulong long1 = await ComputeBlake2b64FromStreamAsync(stream, encoding);
-            return unchecked((long)long1);
-        }
+        public static long ComputeXxHash3SignedFromBytes(ReadOnlySpan<byte> input)
+            => unchecked((long)ComputeXxHash3FromBytes(input));
 
+        public static long ComputeXxHash3SignedFromString(string input, Encoding encoding = null)
+            => unchecked((long)ComputeXxHash3FromString(input, encoding));
 
+        public static long ComputeXxHash3SignedFromStream(Stream stream)
+            => unchecked((long)ComputeXxHash3FromStream(stream));
 
-
-
-        /// <summary>
-        /// 方便地对某个字符串（通过 MemoryStream）使用上述方法。
-        /// </summary>
-        public static async Task<ulong> ComputeBlake2b64FromStringAsync(string input, Encoding encoding = null)
-        {
-            if (input == null)
-                throw new ArgumentNullException(nameof(input));
-            encoding ??= Encoding.UTF8;
-            byte[] bytes = encoding.GetBytes(input);
-            return await ComputeBlake2b64FromBytesAsync(bytes);
-        }
-
-        /// <summary>
-        /// 如果你需要 signed long (long)，可以这样转换：
-        /// </summary>
-        public static async Task<long> ComputeBlake2b64SignedFromStreamAsync(string input, Encoding encoding = null)
-        {
-            ulong long1 = await ComputeBlake2b64FromStringAsync(input, encoding);
-            return unchecked((long)long1);
-        }
-
-
-        public static async Task<ulong> ComputeBlake2b64FromBytesAsync(byte[] input)
-        {
-            if (input == null)
-                throw new ArgumentNullException(nameof(input));
-            using (var ms = new MemoryStream(input))
-            {
-                return await ComputeBlake2b64FromStreamAsync(ms, encoding: null);
-            }
-        }
-
-        /// <summary>
-        /// 如果你需要 signed long (long)，可以这样转换：
-        /// </summary>
-        public static async Task<long> ComputeBlake2b64SignedFromBytesAsync(byte[] input)
-        {
-            ulong long1 = await ComputeBlake2b64FromBytesAsync(input);
-            return unchecked((long)long1);
-        }
 
 
 

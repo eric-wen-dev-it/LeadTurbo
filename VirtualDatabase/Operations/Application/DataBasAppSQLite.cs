@@ -72,12 +72,9 @@ namespace LeadTurbo.VirtualDatabase.Operations.Application
             this.Param.Default();
             this.Param.CommandType = ExecuteType.SQL;
             this.Param.Command = sql;
-            MemberData[] memberDatas = ProtobufNetHelper.GetMembersWithValues(entity);
-            foreach (MemberData memberData in memberDatas)
-            {
-                this.Param.AddParam(memberData.Value);
-            }
-
+            // Delete 过程只需 PK + Ver 两个参数（Ver 用于乐观并发校验）
+            this.Param.AddParam(entity.PrimaryKey);
+            this.Param.AddParam(entity.EditVer);
             return this.ExecuteSQL();
         }
 
