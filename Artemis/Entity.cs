@@ -10,6 +10,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using System.Threading.Tasks;
 using static LeadTurbo.Edit.Operate;
@@ -32,6 +33,7 @@ namespace LeadTurbo.Artemis
         /// <summary>
         /// 主键
         /// </summary>
+        [JsonInclude]
         [ProtoMember(1)]
         public long PrimaryKey
         {
@@ -48,6 +50,7 @@ namespace LeadTurbo.Artemis
             }
         }
         
+        [JsonInclude]
         [ProtoMember(2)]
         public int EditVer
         {
@@ -301,7 +304,111 @@ namespace LeadTurbo.Artemis
 
 
 
-        static Type[] knownTypes;
+        static Type[]? knownTypes;
+        static readonly Lazy<JsonSerializerOptions> entityJsonSerializerOptions = new(CreateEntityJsonSerializerOptions);
+        static readonly Lazy<Dictionary<Type, JsonDerivedType[]>> entityJsonDerivedTypes = new(CreateEntityJsonDerivedTypes);
+
+        public string ToJson(bool writeIndented = true)
+        {
+            JsonSerializerOptions options = writeIndented
+                ? new JsonSerializerOptions(EntityJsonSerializerOptions) { WriteIndented = true }
+                : EntityJsonSerializerOptions;
+            return JsonSerializer.Serialize<Entity>(this, options);
+        }
+
+        public static Entity FromJson(string json)
+        {
+            ArgumentNullException.ThrowIfNull(json);
+            return JsonSerializer.Deserialize<Entity>(json, EntityJsonSerializerOptions)
+                ?? throw new JsonException("JSON deserialization returned null.");
+        }
+
+        public static T FromJson<T>(string json) where T : Entity
+        {
+            ArgumentNullException.ThrowIfNull(json);
+            return JsonSerializer.Deserialize<T>(json, EntityJsonSerializerOptions)
+                ?? throw new JsonException($"JSON deserialization returned null for type {typeof(T).FullName}.");
+        }
+
+        public static JsonSerializerOptions EntityJsonSerializerOptions => entityJsonSerializerOptions.Value;
+
+        static JsonSerializerOptions CreateEntityJsonSerializerOptions()
+        {
+            DefaultJsonTypeInfoResolver resolver = new DefaultJsonTypeInfoResolver();
+            resolver.Modifiers.Add(ConfigureEntityJsonTypeInfo);
+
+            return new JsonSerializerOptions(JsonSerializerDefaults.General)
+            {
+                PreferredObjectCreationHandling = JsonObjectCreationHandling.Populate,
+                TypeInfoResolver = resolver,
+                WriteIndented = false
+            };
+        }
+
+        static Dictionary<Type, JsonDerivedType[]> CreateEntityJsonDerivedTypes()
+        {
+            Type[] types = GetKnownTypes();
+            HashSet<Type> hierarchyTypes = new HashSet<Type>(types) { typeof(Entity) };
+            Dictionary<Type, JsonDerivedType[]> result = new Dictionary<Type, JsonDerivedType[]>();
+
+            foreach (Type baseType in hierarchyTypes)
+            {
+                if (!typeof(Entity).IsAssignableFrom(baseType))
+                {
+                    continue;
+                }
+
+                JsonDerivedType[] derivedTypes = types
+                    .Where(type => type != baseType
+                        && !type.IsAbstract
+                        && !type.IsInterface
+                        && !type.ContainsGenericParameters
+                        && baseType.IsAssignableFrom(type))
+                    .OrderBy(type => type.FullName, StringComparer.Ordinal)
+                    .Select(type => new JsonDerivedType(type, GetJsonTypeDiscriminator(type)))
+                    .ToArray();
+
+                if (derivedTypes.Length > 0)
+                {
+                    result[baseType] = derivedTypes;
+                }
+            }
+
+            return result;
+        }
+
+        static void ConfigureEntityJsonTypeInfo(JsonTypeInfo jsonTypeInfo)
+        {
+            if (!typeof(Entity).IsAssignableFrom(jsonTypeInfo.Type))
+            {
+                return;
+            }
+
+            if (!entityJsonDerivedTypes.Value.TryGetValue(jsonTypeInfo.Type, out JsonDerivedType[]? derivedTypes))
+            {
+                return;
+            }
+
+            JsonPolymorphismOptions polymorphismOptions = new JsonPolymorphismOptions
+            {
+                TypeDiscriminatorPropertyName = "$type",
+                IgnoreUnrecognizedTypeDiscriminators = false,
+                UnknownDerivedTypeHandling = JsonUnknownDerivedTypeHandling.FailSerialization
+            };
+
+            foreach (JsonDerivedType derivedType in derivedTypes)
+            {
+                polymorphismOptions.DerivedTypes.Add(derivedType);
+            }
+
+            jsonTypeInfo.PolymorphismOptions = polymorphismOptions;
+        }
+
+        static string GetJsonTypeDiscriminator(Type type)
+        {
+            return type.FullName ?? type.Name;
+        }
+
         public static Type[] GetKnownTypes()
         {
             if (knownTypes == null)
@@ -381,7 +488,7 @@ namespace LeadTurbo.Artemis
 
             Debug.WriteLine($"Type:{type.Name}");
             
-            foreach (Type subType in knownTypes)
+            foreach (Type subType in GetKnownTypes())
             {
                 if (subType.BaseType == type)
                 {

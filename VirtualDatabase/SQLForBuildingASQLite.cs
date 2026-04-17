@@ -265,7 +265,7 @@ namespace LeadTurbo.VirtualDatabase
                 sb.Append($"UNIQUE ");
             }
 
-            if (column.PermitNull)
+            if (!column.PermitNull)
             {
                 sb.Append("NOT NULL");
             }
@@ -536,31 +536,28 @@ namespace LeadTurbo.VirtualDatabase
         /// <returns></returns>
         public string TypeNameToSQLType(ColumnEntity colProperty)
         {
-            return colProperty.GetType() switch
+            return colProperty switch
             {
-                Type t when t == typeof(ColumnEntitys.ArtemisEntity) => "[Text]",
-                Type t when t == typeof(ColumnEntitys.Binary) => "[BLOB]",
-                Type t when t == typeof(ColumnEntitys.Boolean) => "[NUMERIC]",
-                Type t when t == typeof(ColumnEntitys.Char) => $"[Char]({((ColumnEntitys.Char)colProperty).Length})",
-                Type t when t == typeof(ColumnEntitys.DataRowName) => "[TEXT]",
-                Type t when t == typeof(ColumnEntitys.DataRowNameTextSection) => "[TEXT]",
-                Type t when t == typeof(ColumnEntitys.Date) => "[DateTime]",
-                Type t when t == typeof(ColumnEntitys.DateTime) => "[Datetime]",
-                Type t when t == typeof(ColumnEntitys.Decimal) => "[REAL]",
-                Type t when t == typeof(ColumnEntitys.Double) => "[REAL]",
-                Type t when t == typeof(ColumnEntitys.Enumerate) => "[INTEGER]",
-                Type t when t == typeof(ColumnEntitys.Integer32) => "[INTEGER]",
-                Type t when t == typeof(ColumnEntitys.Integer64) => "[INTEGER]",
-                Type t when t == typeof(ColumnEntitys.Json) => "[TEXT]",
-                Type t when t == typeof(ColumnEntitys.PrimaryKey) => "[INTEGER]",
-                Type t when t == typeof(ColumnEntitys.Sequence) => "[INTEGER]",
-                Type t when t == typeof(ColumnEntitys.Uuid) => "[TEXT]",
-                Type t when t == typeof(ColumnEntitys.VarBinary) => "[BLOB]",
-                Type t when t == typeof(ColumnEntitys.VarChar) => $"[VarChar]({((VarChar)colProperty).Length})",
-                Type t when t == typeof(ColumnEntitys.Ver) => "[INTEGER]",
-                Type t when t == typeof(ColumnEntitys.Xml) => "[TEXT]",
-                
-
+                ColumnEntitys.ArtemisEntity => "TEXT",
+                ColumnEntitys.Xml => "TEXT",
+                ColumnEntitys.Json => "TEXT",
+                ColumnEntitys.Uuid => "TEXT",
+                ColumnEntitys.Date => "TEXT",
+                ColumnEntitys.DateTime => "TEXT",
+                ColumnEntitys.Char charColumn => $"CHAR({charColumn.Length})",
+                VarChar varCharColumn => $"VARCHAR({varCharColumn.Length})",
+                Binary => "BLOB",
+                VarBinary => "BLOB",
+                VarBinaryMax => "BLOB",
+                ColumnEntitys.Boolean => "INTEGER",
+                ColumnEntitys.Decimal => "NUMERIC",
+                ColumnEntitys.Double => "REAL",
+                ForeignKey => "INTEGER",
+                PrimaryKey => "INTEGER",
+                Sequence => "INTEGER",
+                Ver => "INTEGER",
+                Integer32 => "INTEGER",
+                Integer64 => "INTEGER",
                 _ => throw new NotImplementedException(colProperty.GetType().Name)
             };
 
