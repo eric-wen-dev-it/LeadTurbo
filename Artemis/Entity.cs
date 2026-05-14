@@ -92,6 +92,28 @@ namespace LeadTurbo.Artemis
         protected abstract object Create();
 
 
+        /// <summary>
+        /// 深拷贝（与 Jiamparts.Core 行为对齐）。通过 protobuf-net 二进制往返获得完整副本，
+        /// 保留 PrimaryKey 与 EditVer——语义为"同一实体的镜像"。
+        /// </summary>
+        public virtual Entity Clone()
+        {
+            return ProtoBuf.Serializer.DeepClone<Entity>(this);
+        }
+
+        /// <summary>
+        /// 深拷贝并分配新身份。protobuf-net 往返之后，PrimaryKey 替换为新雪花 ID 并将
+        /// EditVer 重置为 0——语义为"基于现有数据的全新实体"。
+        /// </summary>
+        public virtual Entity Copy()
+        {
+            Entity copy = ProtoBuf.Serializer.DeepClone<Entity>(this);
+            copy.primaryKey = snowflakeIdGenerator.NextId();
+            copy.editVer = 0;
+            return copy;
+        }
+
+
         public override bool Equals(object? obj)
         {
             bool _return = false;
